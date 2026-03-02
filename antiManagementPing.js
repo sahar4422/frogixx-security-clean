@@ -2,9 +2,7 @@ const { EmbedBuilder } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
 
-// =====================
-// SETTINGS
-// =====================
+// ===== SETTINGS =====
 const STAFF_ROLE_ID = "1462447685448630332";
 
 const MANAGEMENT_ROLE_IDS = [
@@ -19,17 +17,14 @@ const TIMEOUT_MINUTES = 10;
 const FILE_PATH = path.join(__dirname, "management_ping_warns.json");
 const SECRET_RESET_CMD = "!frogresetpingwarn";
 
-// =====================
-// JSON HELPERS
-// =====================
+// ===== JSON HELPERS =====
 function readJsonSafe() {
   try {
     if (!fs.existsSync(FILE_PATH)) {
       fs.writeFileSync(FILE_PATH, JSON.stringify({}, null, 2));
     }
     const raw = fs.readFileSync(FILE_PATH, "utf8");
-    if (!raw.trim()) return {};
-    return JSON.parse(raw);
+    return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
@@ -41,9 +36,7 @@ function writeJsonSafe(data) {
   } catch {}
 }
 
-// =====================
-// HELPERS
-// =====================
+// ===== HELPERS =====
 function isStaff(member) {
   return member?.roles?.cache?.has(STAFF_ROLE_ID);
 }
@@ -69,16 +62,16 @@ function addWarn(userId) {
   return warns;
 }
 
-// =====================
-// REGISTER
-// =====================
-module.exports = function registerAntiManagementPing(client) {
+// ===== REGISTER FUNCTION =====
+function registerAntiManagementPing(client) {
+
   client.on("messageCreate", async (message) => {
     try {
       if (!message.guild) return;
       if (message.author.bot) return;
+      if (!message.member) return;
 
-      // ===== Reset Command =====
+      // Reset command
       if (message.content.startsWith(SECRET_RESET_CMD)) {
         if (!isStaff(message.member)) return;
 
@@ -129,4 +122,7 @@ module.exports = function registerAntiManagementPing(client) {
       console.log("❌ AntiManagementPing error:", err);
     }
   });
-};
+
+}
+
+module.exports = registerAntiManagementPing;
