@@ -60,6 +60,7 @@ function registerAntiSwear(client) {
       const found = BAD_WORDS.some(word => content.includes(word));
       if (!found) return;
 
+      const originalMessage = message.content;
       await message.delete().catch(() => {});
 
       let data = readData();
@@ -100,12 +101,11 @@ function registerAntiSwear(client) {
       const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
       if (logChannel) {
         await logChannel.send(
-          `🚨 **אנטי קללות**\n` +
-          `👤 משתמש: <@${message.author.id}>\n` +
-          `⏳ טיימאוט: ${timeoutMinutes} דקות\n` +
-          `📊 סטרייקים: ${data[message.author.id].strikes}`
-        ).catch(() => {});
-      }
+       `🚨 **אנטי קללות**\n` +
+       `👤 משתמש: <@${message.author.id}>\n` +
+       `💬 מה נכתב: \`${originalMessage}\`\n` +
+       `⏳ טיימאוט: ${timeoutMinutes} דקות\n` +
+);
 
     } catch (err) {
       console.log("❌ AntiSwear error:", err);
