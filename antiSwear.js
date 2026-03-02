@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const STAFF_IMMUNE_ROLE_ID = "1472834722961952779";
-const LOG_CHANNEL_ID = "1470143249720279164";
+const LOG_CHANNEL_ID = "1476574343885492445";
 
 const FILE_PATH = path.join(__dirname, "swear_data.json");
 
