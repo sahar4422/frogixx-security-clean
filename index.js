@@ -34,10 +34,6 @@ client.on("shardError", (err) => {
   console.log("SHARD ERROR:", err);
 });
 
-client.on("debug", (msg) => {
-  console.log("DEBUG:", msg);
-});
-
 // טעינת המערכות שלך
 require('./antiSwear')(client);
 require('./antiManagementPing')(client);
@@ -52,7 +48,10 @@ if (!process.env.TOKEN) {
   console.log("❌ TOKEN is missing in environment variables!");
 } else {
   console.log("✅ TOKEN detected, logging in...");
-client.login(process.env.TOKEN)
-  .then(() => console.log("Login promise resolved"))
-  .catch(err => console.log("LOGIN FAILED:", err));
+
+  client.on("ready", () => {
+    console.log("🔥 CLIENT READY EVENT FIRED");
+  });
+
+  client.login(process.env.TOKEN);
 }
