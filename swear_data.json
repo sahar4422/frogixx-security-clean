@@ -1,0 +1,26 @@
+{
+  "1057535742617845780": {
+    "strikes": 5,
+    "timeoutMinutes": 320
+  },
+  "1275198279336067102": {
+    "strikes": 2,
+    "timeoutMinutes": 40
+  },
+  "1436076842556588044": {
+    "strikes": 1,
+    "timeoutMinutes": 20
+  },
+  "1435294825300627680": {
+    "strikes": 1,
+    "timeoutMinutes": 20
+  },
+  "1163598946023776338": {
+    "strikes": 1,
+    "timeoutMinutes": 20
+  },
+  "1226386863770570883": {
+    "strikes": 4,
+    "timeoutMinutes": 160
+  }
+}
