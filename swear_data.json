@@ -1,7 +1,7 @@
 {
   "1057535742617845780": {
-    "strikes": 5,
-    "timeoutMinutes": 320
+    "strikes": 1,
+    "timeoutMinutes": 20
   },
   "1275198279336067102": {
     "strikes": 2,
@@ -20,7 +20,7 @@
     "timeoutMinutes": 20
   },
   "1226386863770570883": {
-    "strikes": 4,
-    "timeoutMinutes": 160
+    "strikes": 1,
+    "timeoutMinutes": 20
   }
 }

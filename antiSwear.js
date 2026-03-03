@@ -101,8 +101,9 @@ function registerAntiSwear(client) {
       const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
       if (logChannel) {
        await logChannel.send(
-       `🚨 **אנטי קללות**\n` +
+        `🚨 **אנטי קללות**\n` +
         `👤 משתמש: <@${message.author.id}>\n` +
+        `💬 מה נכתב: \`${originalMessage}\`\n` +
         `⏳ טיימאוט: ${timeoutMinutes} דקות\n` +
         `📊 סטרייקים: ${data[message.author.id].strikes}`
        ).catch(() => {});
