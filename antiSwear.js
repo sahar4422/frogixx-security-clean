@@ -100,12 +100,13 @@ function registerAntiSwear(client) {
       // לוג
       const logChannel = await message.guild.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
       if (logChannel) {
-        await logChannel.send(
+       await logChannel.send(
        `🚨 **אנטי קללות**\n` +
-       `👤 משתמש: <@${message.author.id}>\n` +
-       `💬 מה נכתב: \`${originalMessage}\`\n` +
-       `⏳ טיימאוט: ${timeoutMinutes} דקות\n` +
-);
+        `👤 משתמש: <@${message.author.id}>\n` +
+        `⏳ טיימאוט: ${timeoutMinutes} דקות\n` +
+        `📊 סטרייקים: ${data[message.author.id].strikes}`
+       ).catch(() => {});
+      }
 
     } catch (err) {
       console.log("❌ AntiSwear error:", err);
