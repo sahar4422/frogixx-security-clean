@@ -9,7 +9,7 @@ const {
 // =====================
 
 // 🔥 חדר לוגים של האבטחה (תשים פה אם יש לך חדר לוגים מיוחד)
-const SECURITY_LOG_CHANNEL_ID = "1471856785760583894"; // אפשר לשנות
+const SECURITY_LOG_CHANNEL_ID = "1470459666122277100"; // אפשר לשנות
 
 // ⛔ רק הרול הזה חסין (כמו שביקשת)
 const IMMUNE_ROLE_ID = "1472834722961952779";
@@ -73,9 +73,7 @@ async function sendSecurityLog(guild, title, description) {
 
 async function safeTimeout(member, reason) {
   try {
- if (!member) return false;
-
-console.log("moderatable?", member.moderatable, "user:", member.user.tag);
+    if (!member || !member.moderatable) return false;
     await member.timeout(timeoutMs(), reason).catch(() => {});
     return true;
   } catch {
