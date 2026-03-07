@@ -1,6 +1,5 @@
 const {
   AuditLogEvent,
-  PermissionsBitField,
   EmbedBuilder,
 } = require("discord.js");
 
@@ -8,28 +7,20 @@ const {
 // SETTINGS
 // =====================
 
-// 🔥 חדר לוגים של האבטחה (תשים פה אם יש לך חדר לוגים מיוחד)
-const SECURITY_LOG_CHANNEL_ID = "1470459666122277100"; // אפשר לשנות
-
-// ⛔ רק הרול הזה חסין (כמו שביקשת)
+const SECURITY_LOG_CHANNEL_ID = "1471856785760583894";
 const IMMUNE_ROLE_ID = "1472834722961952779";
 
-// עונש
 const TIMEOUT_MINUTES = 10;
 
-// Anti Spam
 const SPAM_MAX_MESSAGES = 6;
 const SPAM_TIME_WINDOW_MS = 5000;
 
-// Anti Raid (רק התראה)
 const RAID_JOIN_LIMIT = 8;
 const RAID_TIME_WINDOW_MS = 10000;
 
-// Anti Nuke
 const NUKE_LIMIT = 3;
 const NUKE_TIME_WINDOW_MS = 15000;
 
-// Anti Scam Links
 const BLOCKED_LINKS = [
   "discord.gg/",
   "discord.com/invite",
@@ -41,12 +32,12 @@ const BLOCKED_LINKS = [
   "steamcommunity.ru",
 ];
 
-// Anti Bot Add
 const PUNISH_BOT_ADDER = true;
 
 // =====================
 // HELPERS
 // =====================
+
 function isImmune(member) {
   return member?.roles?.cache?.has(IMMUNE_ROLE_ID);
 }
@@ -73,43 +64,31 @@ async function sendSecurityLog(guild, title, description) {
 
 async function safeTimeout(member, reason) {
   try {
-    if (!member || !member.moderatable) return false;
+    if (!member || !member.moderatable) return;
     await member.timeout(timeoutMs(), reason).catch(() => {});
-    return true;
-  } catch {
-    return false;
-  }
+  } catch {}
 }
 
 async function safeKick(member, reason) {
   try {
-    if (!member || !member.kickable) return false;
+    if (!member || !member.kickable) return;
     await member.kick(reason).catch(() => {});
-    return true;
-  } catch {
-    return false;
-  }
+  } catch {}
 }
 
 async function safeBan(member, reason) {
   try {
-    if (!member || !member.bannable) return false;
+    if (!member || !member.bannable) return;
     await member.ban({ reason }).catch(() => {});
-    return true;
-  } catch {
-    return false;
-  }
+  } catch {}
 }
 
 async function getAuditExecutor(guild, type) {
   try {
-    const logs = await guild.fetchAuditLogs({ limit: 1, type }).catch(() => null);
-    if (!logs) return null;
+    const logs = await guild.fetchAuditLogs({ limit: 1, type });
     const entry = logs.entries.first();
     if (!entry) return null;
-
-    // executor = מי עשה
-    return entry.executor || null;
+    return entry.executor;
   } catch {
     return null;
   }
@@ -118,259 +97,192 @@ async function getAuditExecutor(guild, type) {
 // =====================
 // TRACKERS
 // =====================
+
 const spamTracker = new Map();
-// userId -> [{time, msgId}]
-
 const raidTracker = [];
-// [{time, userId}]
-
 const nukeTracker = new Map();
-// userId -> [timestamps]
 
 // =====================
 // ANTI SPAM
 // =====================
+
 async function handleSpam(message) {
-  try {
-    if (!message.guild) return;
-    if (message.author.bot) return;
+  if (!message.guild || message.author.bot) return;
 
-    const member = message.member;
-    if (!member) return;
+  const member = message.member;
+  if (!member || isImmune(member)) return;
 
-    // רק הרול הזה חסין
-    if (isImmune(member)) return;
+  const now = Date.now();
 
-    const now = Date.now();
+  if (!spamTracker.has(member.id)) spamTracker.set(member.id, []);
+  const arr = spamTracker.get(member.id);
 
-    if (!spamTracker.has(message.author.id)) spamTracker.set(message.author.id, []);
-    const arr = spamTracker.get(message.author.id);
+  arr.push(now);
 
-    // מוסיף הודעה
-    arr.push({ time: now, id: message.id });
+  const filtered = arr.filter((t) => now - t <= SPAM_TIME_WINDOW_MS);
+  spamTracker.set(member.id, filtered);
 
-    // מסנן חלון זמן
-    const filtered = arr.filter((x) => now - x.time <= SPAM_TIME_WINDOW_MS);
-    spamTracker.set(message.author.id, filtered);
+  if (filtered.length < SPAM_MAX_MESSAGES) return;
 
-    if (filtered.length < SPAM_MAX_MESSAGES) return;
+  await message.channel.bulkDelete(10).catch(() => {});
+  await safeTimeout(member, "Spam detected");
 
-    // מוחק הודעות אחרונות (עד 10)
-    const channel = message.channel;
-    const messages = await channel.messages.fetch({ limit: 15 }).catch(() => null);
+  await sendSecurityLog(
+    message.guild,
+    "🚨 Anti Spam",
+    `👤 משתמש: <@${member.id}>\n⛔ Timeout ${TIMEOUT_MINUTES} דקות`
+  );
 
-    if (messages) {
-      const toDelete = messages
-        .filter((m) => m.author.id === message.author.id)
-        .first(10);
-
-      for (const m of toDelete) {
-        await m.delete().catch(() => {});
-      }
-    }
-
-    // timeout
-    await safeTimeout(member, "Frogixx Security: Spam");
-
-    await sendSecurityLog(
-      message.guild,
-      "🚨 Anti-Spam Triggered",
-      `👤 משתמש: <@${message.author.id}>\n📌 פעולה: **Spam**\n⛔ עונש: **Timeout ${TIMEOUT_MINUTES} דקות**`
-    );
-
-    // מנקה כדי שלא יעניש 50 פעם
-    spamTracker.delete(message.author.id);
-  } catch {}
+  spamTracker.delete(member.id);
 }
 
 // =====================
 // ANTI LINKS
 // =====================
+
 async function handleLinks(message) {
-  try {
-    if (!message.guild) return;
-    if (message.author.bot) return;
+  if (!message.guild || message.author.bot) return;
 
-    const member = message.member;
-    if (!member) return;
+  const member = message.member;
+  if (!member || isImmune(member)) return;
 
-    if (isImmune(member)) return;
+  const content = message.content.toLowerCase();
 
-    const content = message.content.toLowerCase();
+  const found = BLOCKED_LINKS.find((x) => content.includes(x));
+  if (!found) return;
 
-    const found = BLOCKED_LINKS.find((x) => content.includes(x));
-    if (!found) return;
+  await message.delete().catch(() => {});
+  await safeTimeout(member, "Scam link");
 
-    await message.delete().catch(() => {});
-    await safeTimeout(member, `Frogixx Security: Scam link (${found})`);
-
-    await sendSecurityLog(
-      message.guild,
-      "🔗 Anti-Scam Link",
-      `👤 משתמש: <@${message.author.id}>\n📌 לינק/מילה: **${found}**\n⛔ עונש: **Timeout ${TIMEOUT_MINUTES} דקות**\n\n🧾 תוכן:\n\`\`\`${message.content.slice(0, 1000)}\`\`\``
-    );
-  } catch {}
+  await sendSecurityLog(
+    message.guild,
+    "🔗 Scam Link",
+    `👤 משתמש: <@${member.id}>\n🔗 זוהה: **${found}**`
+  );
 }
 
 // =====================
-// ANTI RAID (JOIN)
+// ANTI RAID
 // =====================
+
 async function handleRaid(member) {
-  try {
-    if (!member.guild) return;
-    if (member.user.bot) return;
+  const now = Date.now();
 
-    const now = Date.now();
-    raidTracker.push({ time: now, userId: member.id });
+  raidTracker.push(now);
 
-    // מסנן
-    while (raidTracker.length && now - raidTracker[0].time > RAID_TIME_WINDOW_MS) {
-      raidTracker.shift();
-    }
+  while (raidTracker.length && now - raidTracker[0] > RAID_TIME_WINDOW_MS) {
+    raidTracker.shift();
+  }
 
-    if (raidTracker.length >= RAID_JOIN_LIMIT) {
-      await sendSecurityLog(
-        member.guild,
-        "🚨 Anti-Raid Alert",
-        `⚠️ נכנסו **${raidTracker.length} משתמשים** תוך **${Math.floor(
-          RAID_TIME_WINDOW_MS / 1000
-        )} שניות**.\n\n📌 זה רק התראה (לא מעניש אוטומטי).`
-      );
+  if (raidTracker.length >= RAID_JOIN_LIMIT) {
+    await sendSecurityLog(
+      member.guild,
+      "🚨 Anti Raid Alert",
+      `⚠️ ${raidTracker.length} משתמשים נכנסו תוך ${RAID_TIME_WINDOW_MS / 1000} שניות`
+    );
 
-      raidTracker.length = 0;
-    }
-  } catch {}
+    raidTracker.length = 0;
+  }
 }
 
 // =====================
-// ANTI NUKE (CHANNEL DELETE)
+// ANTI NUKE
 // =====================
-async function handleChannelDelete(channel) {
-  try {
-    const guild = channel.guild;
-    if (!guild) return;
 
-    const executor = await getAuditExecutor(guild, AuditLogEvent.ChannelDelete);
-    if (!executor) return;
+async function trackNuke(guild, member, action) {
 
-    const member = await guild.members.fetch(executor.id).catch(() => null);
-    if (!member) return;
+  const now = Date.now();
 
-    if (isImmune(member)) return;
+  if (!nukeTracker.has(member.id)) nukeTracker.set(member.id, []);
+  const arr = nukeTracker.get(member.id);
 
-    const now = Date.now();
+  arr.push(now);
 
-    if (!nukeTracker.has(member.id)) nukeTracker.set(member.id, []);
-    const arr = nukeTracker.get(member.id);
+  const filtered = arr.filter((t) => now - t <= NUKE_TIME_WINDOW_MS);
+  nukeTracker.set(member.id, filtered);
 
-    arr.push(now);
+  if (filtered.length >= NUKE_LIMIT) {
 
-    // מסנן חלון זמן
-    const filtered = arr.filter((t) => now - t <= NUKE_TIME_WINDOW_MS);
-    nukeTracker.set(member.id, filtered);
-
-    if (filtered.length >= NUKE_LIMIT) {
-      await safeBan(member, "Frogixx Security: Channel Nuke");
-      await sendSecurityLog(
-        guild,
-        "💥 Anti-Nuke Triggered (Channels)",
-        `👤 מי עשה: <@${member.id}>\n📌 פעולה: **מחק חדרים**\n⛔ עונש: **BAN**\n🧨 כמות: ${filtered.length} תוך ${NUKE_TIME_WINDOW_MS / 1000} שניות`
-      );
-      nukeTracker.delete(member.id);
-    } else {
-      await sendSecurityLog(
-        guild,
-        "⚠️ Channel Deleted",
-        `👤 מי מחק: <@${member.id}>\n📌 חדר: **${channel.name}**\n📊 ספירה: ${filtered.length}/${NUKE_LIMIT}`
-      );
-    }
-  } catch {}
-}
-
-// =====================
-// ANTI NUKE (ROLE DELETE)
-// =====================
-async function handleRoleDelete(role) {
-  try {
-    const guild = role.guild;
-    if (!guild) return;
-
-    const executor = await getAuditExecutor(guild, AuditLogEvent.RoleDelete);
-    if (!executor) return;
-
-    const member = await guild.members.fetch(executor.id).catch(() => null);
-    if (!member) return;
-
-    if (isImmune(member)) return;
-
-    const now = Date.now();
-
-    if (!nukeTracker.has(member.id)) nukeTracker.set(member.id, []);
-    const arr = nukeTracker.get(member.id);
-
-    arr.push(now);
-
-    const filtered = arr.filter((t) => now - t <= NUKE_TIME_WINDOW_MS);
-    nukeTracker.set(member.id, filtered);
-
-    if (filtered.length >= NUKE_LIMIT) {
-      await safeBan(member, "Frogixx Security: Role Nuke");
-      await sendSecurityLog(
-        guild,
-        "💥 Anti-Nuke Triggered (Roles)",
-        `👤 מי עשה: <@${member.id}>\n📌 פעולה: **מחק רולים**\n⛔ עונש: **BAN**\n🧨 כמות: ${filtered.length} תוך ${NUKE_TIME_WINDOW_MS / 1000} שניות`
-      );
-      nukeTracker.delete(member.id);
-    } else {
-      await sendSecurityLog(
-        guild,
-        "⚠️ Role Deleted",
-        `👤 מי מחק: <@${member.id}>\n📌 רול: **${role.name}**\n📊 ספירה: ${filtered.length}/${NUKE_LIMIT}`
-      );
-    }
-  } catch {}
-}
-
-// =====================
-// ANTI BOT ADD
-// =====================
-async function handleBotAdd(member) {
-  try {
-    if (!member.guild) return;
-    if (!member.user.bot) return;
-
-    const guild = member.guild;
-
-    const executor = await getAuditExecutor(guild, AuditLogEvent.BotAdd);
-    if (!executor) return;
-
-    const adder = await guild.members.fetch(executor.id).catch(() => null);
-    if (!adder) return;
-
-    if (isImmune(adder)) return;
-
-    // מעיף את הבוט שנוסף
-    await safeKick(member, "Frogixx Security: Unauthorized bot");
-
-    // מעניש את מי שהוסיף
-    if (PUNISH_BOT_ADDER) {
-      await safeTimeout(adder, "Frogixx Security: Added bot");
-    }
+    await safeBan(member, "Server Nuke");
+    nukeTracker.delete(member.id);
 
     await sendSecurityLog(
       guild,
-      "🤖 Anti Bot-Add Triggered",
-      `👤 מי הוסיף: <@${adder.id}>\n🤖 בוט שנוסף: <@${member.id}>\n⛔ פעולה: הבוט הועף + נותן Timeout למוסיף`
+      "💥 Anti Nuke",
+      `👤 <@${member.id}> ניסה לבצע **${action}**`
     );
-  } catch {}
+
+  }
+}
+
+// =====================
+// CHANNEL DELETE
+// =====================
+
+async function handleChannelDelete(channel) {
+
+  const executor = await getAuditExecutor(channel.guild, AuditLogEvent.ChannelDelete);
+  if (!executor) return;
+
+  const member = await channel.guild.members.fetch(executor.id).catch(() => null);
+  if (!member || isImmune(member)) return;
+
+  await trackNuke(channel.guild, member, "Channel Delete");
+
+}
+
+// =====================
+// ROLE DELETE
+// =====================
+
+async function handleRoleDelete(role) {
+
+  const executor = await getAuditExecutor(role.guild, AuditLogEvent.RoleDelete);
+  if (!executor) return;
+
+  const member = await role.guild.members.fetch(executor.id).catch(() => null);
+  if (!member || isImmune(member)) return;
+
+  await trackNuke(role.guild, member, "Role Delete");
+
+}
+
+// =====================
+// BOT ADD
+// =====================
+
+async function handleBotAdd(member) {
+
+  if (!member.user.bot) return;
+
+  const executor = await getAuditExecutor(member.guild, AuditLogEvent.BotAdd);
+  if (!executor) return;
+
+  const adder = await member.guild.members.fetch(executor.id).catch(() => null);
+  if (!adder || isImmune(adder)) return;
+
+  await safeKick(member, "Unauthorized bot");
+
+  if (PUNISH_BOT_ADDER) {
+    await safeTimeout(adder, "Unauthorized bot add");
+  }
+
+  await sendSecurityLog(
+    member.guild,
+    "🤖 Unauthorized Bot",
+    `👤 <@${adder.id}> הוסיף בוט\n🤖 הבוט הועף`
+  );
+
 }
 
 // =====================
 // REGISTER
 // =====================
+
 function registerSecuritySystem(client) {
+
   client.once("ready", () => {
-    console.log("🛡️ Security system loaded (IMMUNE ROLE ONLY)!");
+    console.log("🛡 Security system loaded!");
   });
 
   client.on("messageCreate", async (message) => {
@@ -390,6 +302,7 @@ function registerSecuritySystem(client) {
   client.on("roleDelete", async (role) => {
     await handleRoleDelete(role);
   });
+
 }
 
 module.exports = { registerSecuritySystem };
